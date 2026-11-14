@@ -1,0 +1,49 @@
+-- ENPH UDI. Ejecutar desde SQL*Plus con @ seguido de la ruta entre comillas.
+-- No cambia datos ni activa o desactiva disparadores.
+WHENEVER SQLERROR EXIT SQL.SQLCODE
+BEGIN
+  IF USER <> 'PROYECTOINTEGRADOR' THEN
+    RAISE_APPLICATION_ERROR(-20112,'Conectate como PROYECTOINTEGRADOR en UDI.');
+  END IF;
+END;
+/
+CREATE OR REPLACE FUNCTION enph3_dia_ciclo(p_inicio DATE, p_fecha DATE)
+RETURN NUMBER IS
+  v_dia NUMBER;
+BEGIN
+  IF p_inicio IS NULL OR p_fecha IS NULL THEN
+    RAISE_APPLICATION_ERROR(-20031,'La fecha del ciclo es obligatoria.');
+  END IF;
+  v_dia := TRUNC(p_fecha) - TRUNC(p_inicio) + 1;
+  IF v_dia NOT BETWEEN 1 AND 14 THEN
+    RAISE_APPLICATION_ERROR(-20032,'La fecha esta fuera del ciclo de 14 dias.');
+  END IF;
+  RETURN v_dia;
+END;
+/
+SHOW ERRORS FUNCTION enph3_dia_ciclo
+
+CREATE OR REPLACE FUNCTION enph3_total_hogar(p_hogar NUMBER)
+RETURN NUMBER IS
+  v_total NUMBER;
+BEGIN
+  SELECT NVL(SUM(g.valor_pagado),0) INTO v_total
+  FROM gasto g JOIN visita v ON v.id_visita=g.id_visita
+  WHERE v.id_hogar=p_hogar AND v.numero_dia_ciclo BETWEEN 1 AND 14;
+  RETURN v_total;
+END;
+/
+SHOW ERRORS FUNCTION enph3_total_hogar
+DECLARE n NUMBER;
+BEGIN
+ SELECT COUNT(*) INTO n FROM user_objects WHERE object_type='FUNCTION'
+ AND object_name IN ('ENPH3_DIA_CICLO','ENPH3_TOTAL_HOGAR') AND status='VALID';
+ IF n<>2 THEN RAISE_APPLICATION_ERROR(-20111,'Funciones invalidas. Revisa SHOW ERRORS.'); END IF;
+END;
+/
+PROMPT Funciones ENPH instaladas y validas.
+
+SELECT enph3_dia_ciclo(DATE '2026-01-01',DATE '2026-01-01') AS primer_dia,
+       enph3_dia_ciclo(DATE '2026-01-01',DATE '2026-01-14') AS ultimo_dia
+FROM dual;
+WHENEVER SQLERROR CONTINUE

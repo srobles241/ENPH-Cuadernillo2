@@ -1,0 +1,8 @@
+conexion.local.properties
+**/nbproject/private/
+**/build/
+**/dist/
+*.class
+*.jar
+*.dmp
+*.DMP

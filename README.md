@@ -19,3 +19,17 @@ Proyecto integrador para registrar y consultar gastos diarios de hogares urbanos
 El ZIP incluye los archivos Java comentados y los archivos de proyecto de NetBeans con sus carpetas originales. Se agregaron 88 comentarios sin cambiar el codigo base. Se verifico la compilacion y la igualdad del codigo ejecutable generado, excluyendo informacion de depuracion.
 
 La configuracion Oracle local, sus contrasenas, el dump y los datos de hogares no se publican. Cada equipo debe configurar su conexion e importar la base por separado. El controlador ojdbc14.jar debe colocarse en lib antes de ejecutar; no esta incluido en el ZIP publico.
+
+## Versión UDI
+
+El [proyecto de NetBeans](ENPH-UDI/) incluye los cinco reportes y el código compatible con Java 8 o superior.
+
+1. Abre ENPH-UDI como proyecto en NetBeans.
+2. Coloca el controlador Oracle ojdbc14.jar en ENPH-UDI/lib.
+3. Copia conexion.local.properties.example como conexion.local.properties junto a build.xml y completa los datos de tu entorno.
+4. En una base UDI existente, verifica el instalador de funciones y las migraciones 10, 11 y 12 de oracle-udi. Las migraciones 06 y 07 documentan la creación de esquemas y los roles y se aplican si aún faltan.
+5. Ejecuta Clean and Build y abre LoginFrame. Para ejecutar el JAR desde la carpeta ENPH-UDI, usa:
+
+   `java -cp "dist/Dise_oProyectoU.jar;lib/ojdbc14.jar" enph.LoginFrame`
+
+El respaldo de Oracle y la configuración con credenciales se mantienen fuera del repositorio.

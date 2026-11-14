@@ -1,0 +1,80 @@
+WHENEVER SQLERROR EXIT SQL.SQLCODE
+DECLARE
+ n NUMBER;
+BEGIN
+ IF USER <> 'PROYECTOINTEGRADOR' THEN
+   RAISE_APPLICATION_ERROR(-20134,'Conectate como PROYECTOINTEGRADOR.');
+ END IF;
+ SELECT COUNT(*) INTO n FROM session_privs
+ WHERE privilege IN ('CREATE USER','CREATE ROLE','CREATE VIEW','CREATE PROCEDURE');
+ IF n<>4 THEN
+   RAISE_APPLICATION_ERROR(-20136,'Faltan permisos activos: revisa SESSION_PRIVS.');
+ END IF;
+ SELECT COUNT(*) INTO n FROM user_tab_columns
+ WHERE table_name='ENPH_USUARIO' AND column_name='USUARIO_ORACLE';
+ IF n>0 THEN
+   RAISE_APPLICATION_ERROR(-20137,'Ya existe USUARIO_ORACLE. Revisar instalacion anterior antes de repetir.');
+ END IF;
+END;
+/
+ALTER TABLE enph_usuario ADD (usuario_oracle VARCHAR2(30) UNIQUE);
+
+CREATE ROLE enph_u_enc;
+CREATE ROLE enph_u_rec;
+CREATE ROLE enph_u_sup;
+
+-- Roles Oracle de acceso acotado. Los esquemas de los usuarios quedan bloqueados.
+-- El rol funcional de Java sigue limitando las acciones y la asignacion por hogar.
+CREATE OR REPLACE VIEW enph_u_v_catalogo AS
+ SELECT p.id_producto,p.nombre_producto,p.unidad_medida,c.nombre_categoria
+ FROM producto p JOIN categoria c ON c.id_categoria=p.id_categoria;
+CREATE OR REPLACE VIEW enph_u_v_recorrido AS
+ SELECT id_hogar,codigo_hogar,estado,id_encuestador_asignado FROM hogar;
+CREATE OR REPLACE VIEW enph_u_v_revision AS
+ SELECT id_caso,id_hogar,estado_caso FROM caso;
+
+GRANT SELECT ON enph_u_v_catalogo TO enph_u_enc;
+GRANT SELECT ON enph_u_v_recorrido TO enph_u_rec;
+GRANT SELECT ON enph_u_v_revision TO enph_u_sup;
+
+CREATE OR REPLACE PROCEDURE enph_provisionar_esquema(
+ p_usuario IN VARCHAR2,p_rol IN VARCHAR2,p_clave IN VARCHAR2
+) AUTHID CURRENT_USER IS
+ v_rol VARCHAR2(30);
+ v_creado BOOLEAN:=FALSE;
+BEGIN
+ IF SYS_CONTEXT('USERENV','SESSION_USER') <> 'PROYECTOINTEGRADOR' THEN
+   RAISE_APPLICATION_ERROR(-20135,'Solo el propietario de ENPH en UDI puede ejecutar el alta.');
+ END IF;
+ IF p_usuario IS NULL OR NOT REGEXP_LIKE(p_usuario,'^ENPH_U_[A-Z0-9_]{1,23}$')
+    OR p_clave IS NULL OR NOT REGEXP_LIKE(p_clave,'^[A-Za-z][A-Za-z0-9]{19,29}$') THEN
+   RAISE_APPLICATION_ERROR(-20130,'Nombre o clave de provision invalida.');
+ END IF;
+ CASE p_rol
+   WHEN 'Encuestador' THEN v_rol:='ENPH_U_ENC';
+   WHEN 'Recuentista' THEN v_rol:='ENPH_U_REC';
+   WHEN 'Supervisor' THEN v_rol:='ENPH_U_SUP';
+   ELSE RAISE_APPLICATION_ERROR(-20131,'Rol operativo invalido.');
+ END CASE;
+ BEGIN
+   EXECUTE IMMEDIATE 'CREATE USER '||p_usuario||' IDENTIFIED BY "'||p_clave||'" ACCOUNT LOCK';
+   v_creado:=TRUE;
+   EXECUTE IMMEDIATE 'GRANT '||v_rol||' TO '||p_usuario;
+ EXCEPTION WHEN OTHERS THEN
+   IF v_creado THEN
+     RAISE_APPLICATION_ERROR(-20132,'Esquema bloqueado creado sin completar rol: '||p_usuario,TRUE);
+   END IF;
+   RAISE;
+ END;
+END;
+/
+SHOW ERRORS PROCEDURE enph_provisionar_esquema
+DECLARE n NUMBER;
+BEGIN
+ SELECT COUNT(*) INTO n FROM user_objects
+ WHERE object_name='ENPH_PROVISIONAR_ESQUEMA' AND object_type='PROCEDURE' AND status='VALID';
+ IF n<>1 THEN RAISE_APPLICATION_ERROR(-20133,'Provisionador invalido. Revisa SHOW ERRORS.'); END IF;
+END;
+/
+PROMPT Provisionador instalado. Prueba un alta desde ENPH.
+
